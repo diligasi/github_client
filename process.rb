@@ -1,13 +1,13 @@
-require_relative './client.rb'
-require 'json'
+require_relative './app/clients/github_rest'
+require_relative './app/services/fetch_issues'
 
 module Github
   class Processor
     # This class is responsible for processing the response from the Github API.
     # It accepts a client object and stores it as an instance variable.
     # It has a method called `issues` that returns a list of issues from the Github API.
-    def initialize(client)
-      @client = client
+    def initialize(token, repo_url)
+      @client = Clients::GithubRest.new(token, repo_url)
     end
 
     def issues(open: true)
@@ -22,9 +22,10 @@ module Github
       # Return a list of issues from the response, with each line showing the issue's title, whether it is open or closed,
       # and the date the issue was closed if it is closed, or the date the issue was created if it is open.
       # the issues are sorted by the date they were closed or created, from newest to oldest.
-      
-      response = @client.get("/issues?state=#{state}")
-      issues = JSON.parse(response.body)
+
+      service = Services::FetchIssues.new(@client)
+      issues = service.call(state: state)
+
       sorted_issues = issues.sort_by do |issue|
         if state == 'closed'
           issue['closed_at']
@@ -32,7 +33,7 @@ module Github
           issue['created_at']
         end
       end.reverse
-      
+
       sorted_issues.each do |issue|
         if issue['state'] == 'closed'
           puts "#{issue['title']} - #{issue['state']} - Closed at: #{issue['closed_at']}"
@@ -43,6 +44,8 @@ module Github
     end
   end
 end
+
 # The URL to make API requests for the IBM organization and the jobs repository
 # would be 'https://api.github.com/repos/ibm/jobs'.
-Github::Processor.new(Github::Client.new(ENV['TOKEN'], ARGV[0])).issues(open: false)
+Github::Processor.new(ENV['TOKEN'], ARGV[0]).issues(open: ARGV[1])
+
